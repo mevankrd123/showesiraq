@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="neon">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHOWES | لوحة الإدارة الآمنة</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- مكتبة Appwrite -->
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1"></script>
+
+    <style>
+        :root { --bg: #0b0f13; --card: #141c24; --primary: #00ff88; --text: #fff; --muted: #8b9bb4; --border: rgba(0, 255, 136, 0.2); }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Cairo', sans-serif; }
+        body { background: var(--bg); color: var(--text); padding: 20px; min-height: 100vh; }
+        .container { max-width: 800px; margin: 0 auto; display: none; }
+        
+        .login-screen { position: fixed; inset: 0; background: var(--bg); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 20px; }
+        .login-box { background: var(--card); padding: 30px; border-radius: 12px; border: 1px solid var(--border); width: 100%; max-width: 400px; text-align: center; }
+        .login-box h2 { color: var(--primary); margin-bottom: 20px; }
+        
+        .box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        h2, h3 { margin-bottom: 15px; color: var(--primary); }
+        .form-group { margin-bottom: 12px; text-align: right; }
+        .form-group label { display: block; font-size: 0.85rem; margin-bottom: 4px; color: var(--muted); }
+        .form-control { width: 100%; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: #fff; outline: none; font-size: 0.9rem; }
+        .form-control option { background: #111; }
+        .btn { padding: 10px 20px; border-radius: 8px; border: none; background: var(--primary); color: #000; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .product-row { display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); gap: 10px; flex-wrap: wrap; }
+        .product-row img { width: 45px; height: 45px; border-radius: 6px; object-fit: cover; }
+        .order-card { background: rgba(255,255,255,0.03); border: 1px solid var(--border); padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 0.9rem; }
+        .toast { position: fixed; bottom: 20px; left: 20px; background: var(--primary); color: #000; padding: 10px 18px; border-radius: 8px; font-weight: 800; display: none; z-index: 99; }
+        .loader { text-align: center; color: var(--muted); padding: 20px; }
+        
+        /* تحسين زر رفع الصور */
+        .upload-box {
+            display: block; background: rgba(0, 255, 136, 0.05); border: 2px dashed var(--primary); 
+            padding: 25px 15px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s;
+        }
+        .upload-box:active { background: rgba(0, 255, 136, 0.15); }
+    </style>
+</head>
+<body>
+
+    <div id="toast" class="toast">تمت العملية بنجاح</div>
+
+    <div class="login-screen" id="loginScreen">
+        <div class="login-box">
+            <h2><i class="fa-solid fa-lock"></i> تسجيل الدخول (للمدير)</h2>
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group"><label>البريد الإلكتروني</label><input type="email" id="lEmail" class="form-control" required dir="ltr"></div>
+                <div class="form-group"><label>كلمة المرور</label><input type="password" id="lPass" class="form-control" required dir="ltr"></div>
+                <button type="submit" class="btn" id="loginBtn" style="width: 100%; margin-top: 10px;">تسجيل الدخول</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container" id="adminApp">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+            <h2>⚙️ لوحة إدارة متجر SHOWES</h2>
+            <div style="display:flex; gap:10px;">
+                <button class="btn" style="background:#ff2a5f; color:#fff; font-size:0.85rem;" onclick="handleLogout()">تسجيل الخروج</button>
+            </div>
+        </div>
+
+        <div class="box">
+            <h3 id="formTitle"><i class="fa-solid fa-plus-circle"></i> إضافة منتج جديد</h3>
+            <form onsubmit="handleProductSubmit(event)">
+                <input type="hidden" id="editId">
+                <div class="form-group"><label>اسم المنتج</label><input type="text" id="pName" class="form-control" required></div>
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div class="form-group"><label>القسم</label>
+                        <select id="pCat" class="form-control"><option value="shoes">أحذية</option><option value="gloves">كفوف</option></select>
+                    </div>
+                    <div class="form-group"><label>الحالة</label>
+                        <select id="pCond" class="form-control"><option value="مستعمل">مستعمل</option><option value="جديد">جديد</option></select>
+                    </div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div class="form-group"><label>القياس</label><input type="text" id="pSize" class="form-control" required></div>
+                    <div class="form-group"><label>العدد المتوفر (المخزون)</label><input type="number" id="pStock" class="form-control" value="1" min="1" required></div>
+                </div>
+                
+                <div class="form-group"><label>السعر (د.ع)</label><input type="number" id="pPrice" class="form-control" required></div>
+                <div class="form-group"><label>وصف المنتج</label><textarea id="pDesc" class="form-control" rows="3"></textarea></div>
+                
+                <!-- تصميم جديد وسهل لرفع الصور -->
+                <div style="margin-bottom: 15px;">
+                    <label for="pImageFile" class="upload-box">
+                        <i class="fa-solid fa-cloud-arrow-up fa-2x" style="color:var(--primary); margin-bottom:10px;"></i><br>
+                        <strong style="color:var(--primary); font-size:1.1rem;">اضغط هنا لاختيار الصور من الاستوديو</strong>
+                        <div id="fileCountText" style="font-size:0.9rem; color:var(--text-muted); margin-top:8px;">لم يتم اختيار أي صورة بعد</div>
+                    </label>
+                    <input type="file" id="pImageFile" accept="image/jpeg, image/png, image/webp" multiple style="display:none;" onchange="updateFileCount(this)">
+                    
+                    <div class="form-group" style="margin-top: 10px; margin-bottom: 0;">
+                        <label style="font-size: 0.8rem;">أو ضع روابط الصور مباشرة (افصل بينها بفاصلة ,)</label>
+                        <input type="text" id="pImg" class="form-control" placeholder="https://img1.jpg, https://img2.jpg" dir="ltr">
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <button type="submit" class="btn" id="submitBtn" style="flex:1;"><i class="fa-solid fa-cloud-arrow-up"></i> نشر في المتجر</button>
+                    <button type="button" class="btn" id="cancelEditBtn" style="background:#ff2a5f; color:#fff; display:none;" onclick="resetForm()">إلغاء</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="box">
+            <h3><i class="fa-solid fa-boxes-stacked"></i> المنتجات الحالية</h3>
+            <div id="adminProductsList"><div class="loader"><i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...</div></div>
+        </div>
+
+        <div class="box">
+            <h3><i class="fa-solid fa-truck-fast"></i> طلبات الزبائن (<span id="orderCount">0</span>)</h3>
+            <div id="adminOrdersList"><div class="loader"><i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...</div></div>
+        </div>
+    </div>
+
+    <script>
+        const { Client, Databases, Account, Storage, ID, Query } = Appwrite;
+        
+        const PROJECT_ID = '6ada4776003bf1e22cbc';
+        const DB_ID = '6ada47920006b021fce1';
+        const PROD_COL = '6ada480a0002f071d7e0';
+        const ORD_COL = '6ada49e6001d78d32a0e';
+        const BUCKET_ID = '6ada4d680000d418c8f0'; 
+
+        const client = new Client().setEndpoint('https://cloud.appwrite.io/v1').setProject(PROJECT_ID);
+        const databases = new Databases(client);
+        const account = new Account(client);
+        const storage = new Storage(client);
+
+        let products = [];
+        let orders = [];
+
+        // دالة تحديث نص عدد الصور عند الاختيار
+        function updateFileCount(input) {
+            const count = input.files.length;
+            const textEl = document.getElementById('fileCountText');
+            if (count > 0) {
+                textEl.innerHTML = `✅ تم اختيار <strong>${count}</strong> صور بنجاح`;
+                textEl.style.color = '#00ff88';
+            } else {
+                textEl.innerHTML = 'لم يتم اختيار أي صورة بعد';
+                textEl.style.color = 'var(--text-muted)';
+            }
+        }
+
+        async function checkAuth() {
+            try {
+                await account.get();
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('adminApp').style.display = 'block';
+                fetchAdminData();
+            } catch (error) {
+                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('adminApp').style.display = 'none';
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = true;
+            btn.innerText = 'جاري التحقق...';
+            try {
+                await account.createEmailPasswordSession(document.getElementById('lEmail').value, document.getElementById('lPass').value);
+                checkAuth(); 
+            } catch (error) {
+                alert('فشل تسجيل الدخول. تأكد من الإيميل وكلمة السر.');
+                btn.disabled = false;
+                btn.innerText = 'تسجيل الدخول';
+            }
+        }
+
+        async function handleLogout() {
+            try { await account.deleteSession('current'); location.reload(); } catch (error) { alert('خطأ أثناء تسجيل الخروج'); }
+        }
+
+        async function fetchAdminData() {
+            try {
+                const pRes = await databases.listDocuments(DB_ID, PROD_COL, [Query.orderDesc('$createdAt'), Query.limit(100)]);
+                products = pRes.documents;
+                renderProductsAdmin();
+                const oRes = await databases.listDocuments(DB_ID, ORD_COL, [Query.orderDesc('$createdAt'), Query.limit(50)]);
+                orders = oRes.documents;
+                renderOrdersAdmin();
+            } catch (error) { console.error(error); }
+        }
+
+        async function handleProductSubmit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            
+            const editId = document.getElementById('editId').value;
+            const fileInput = document.getElementById('pImageFile');
+            let manualUrls = document.getElementById('pImg').value;
+            let finalImageUrls = [];
+
+            if (fileInput.files.length > 0) {
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري رفع الصور...';
+                try {
+                    const uploadPromises = Array.from(fileInput.files).map(async (file) => {
+                        const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), file);
+                        return `https://cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID}/files/${uploadedFile.$id}/view?project=${PROJECT_ID}`;
+                    });
+                    
+                    const uploadedUrlsArray = await Promise.all(uploadPromises);
+                    finalImageUrls.push(...uploadedUrlsArray);
+                    
+                } catch (error) {
+                    console.error("Upload error", error);
+                    alert('حدث خطأ أثناء رفع الصور! تأكد من اتصالك أو حجم الصور.');
+                    btn.disabled = false;
+                    btn.innerHTML = editId ? '<i class="fa-solid fa-check"></i> حفظ التعديلات' : '<i class="fa-solid fa-cloud-arrow-up"></i> نشر في المتجر';
+                    return;
+                }
+            }
+
+            if (manualUrls) {
+                const cleanUrls = manualUrls.split(',').map(url => url.trim()).filter(url => url !== "");
+                finalImageUrls.push(...cleanUrls);
+            }
+
+            if (finalImageUrls.length === 0 && !editId) {
+                alert('الرجاء اختيار صورة (أو عدة صور) من الهاتف أو وضع رابط.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> نشر في المتجر';
+                return;
+            }
+
+            const finalImageString = finalImageUrls.join(',');
+
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الحفظ...';
+
+            const payload = {
+                name: document.getElementById('pName').value || "بدون اسم",
+                category: document.getElementById('pCat').value || "shoes",
+                condition: document.getElementById('pCond').value || "مستعمل",
+                size: document.getElementById('pSize').value || "42",
+                stock: Number(document.getElementById('pStock').value) || 1,
+                price: Number(document.getElementById('pPrice').value) || 0,
+                desc: document.getElementById('pDesc').value || "",
+                sold: false
+            };
+
+            if (finalImageString !== "") {
+                payload.image = finalImageString;
+            }
+
+            try {
+                if (editId) {
+                    const existingProduct = products.find(p => p.$id === editId);
+                    if(existingProduct) {
+                        payload.sold = existingProduct.sold;
+                        if (!payload.image) payload.image = existingProduct.image;
+                    }
+                    await databases.updateDocument(DB_ID, PROD_COL, editId, payload);
+                    showToast('✏️ تم تعديل المنتج بنجاح');
+                } else {
+                    await databases.createDocument(DB_ID, PROD_COL, ID.unique(), payload);
+                    showToast('✅ تم نشر المنتج في المتجر');
+                }
+                resetForm();
+                fetchAdminData(); 
+            } catch (error) {
+                console.error("Database error", error);
+                alert('خطأ أثناء حفظ المنتج. ملاحظة: تأكد أن عمود image في Appwrite حجمه كبير جداً (مثلا 5000).');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = editId ? '<i class="fa-solid fa-check"></i> حفظ التعديلات' : '<i class="fa-solid fa-cloud-arrow-up"></i> نشر في المتجر';
+            }
+        }
+
+        function editProduct(id) {
+            const p = products.find(x => x.$id === id);
+            if (!p) return;
+            document.getElementById('editId').value = p.$id;
+            document.getElementById('pName').value = p.name;
+            document.getElementById('pCat').value = p.category;
+            document.getElementById('pCond').value = p.condition;
+            document.getElementById('pSize').value = p.size;
+            document.getElementById('pStock').value = p.stock || 1;
+            document.getElementById('pPrice').value = p.price;
+            document.getElementById('pDesc').value = p.desc || '';
+            document.getElementById('pImg').value = ''; 
+            
+            // تصفير قسم الصور عند التعديل
+            document.getElementById('pImageFile').value = '';
+            document.getElementById('fileCountText').innerHTML = 'أبقِ هذا فارغاً للاحتفاظ بالصور القديمة';
+            document.getElementById('fileCountText').style.color = '#ffcc00';
+
+            document.getElementById('formTitle').innerHTML = '<i class="fa-solid fa-pen-to-square"></i> تعديل المنتج';
+            document.getElementById('submitBtn').innerHTML = '<i class="fa-solid fa-check"></i> حفظ التعديلات';
+            document.getElementById('cancelEditBtn').style.display = 'inline-flex';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetForm() {
+            document.getElementById('editId').value = '';
+            document.querySelector('form').reset();
+            
+            document.getElementById('fileCountText').innerHTML = 'لم يتم اختيار أي صورة بعد';
+            document.getElementById('fileCountText').style.color = 'var(--text-muted)';
+
+            document.getElementById('formTitle').innerHTML = '<i class="fa-solid fa-plus-circle"></i> إضافة منتج جديد';
+            document.getElementById('submitBtn').innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> نشر في المتجر';
+            document.getElementById('cancelEditBtn').style.display = 'none';
+        }
+
+        async function toggleSold(id, currentStatus) {
+            try { await databases.updateDocument(DB_ID, PROD_COL, id, { sold: !currentStatus }); fetchAdminData(); } 
+            catch(e) { alert('خطأ في تحديث الحالة'); }
+        }
+
+        async function deleteProd(id) {
+            if(!confirm('هل أنت متأكد من حذف هذا المنتج نهائياً؟')) return;
+            try { await databases.deleteDocument(DB_ID, PROD_COL, id); showToast('🗑️ تم الحذف'); fetchAdminData(); } 
+            catch(e) { alert('خطأ في عملية الحذف'); }
+        }
+
+        function renderProductsAdmin() {
+            const list = document.getElementById('adminProductsList');
+            if(products.length === 0) { list.innerHTML = `<p style="color:var(--muted); text-align:center;">لا توجد منتجات حالياً</p>`; return; }
+            list.innerHTML = products.map(p => {
+                const firstImage = p.image ? p.image.split(',')[0] : '';
+                return `
+                <div class="product-row">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${firstImage}">
+                        <div>
+                            <div style="font-weight:700; font-size:0.9rem;">${p.name} (${p.size}) - العدد: ${p.stock || 1}</div>
+                            <div style="font-size:0.8rem; color:var(--muted);">${p.condition} | ${Number(p.price).toLocaleString()} د.ع</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn" style="padding:6px 10px; font-size:0.75rem; background:#00d4ff; color:#000;" onclick="editProduct('${p.$id}')">تعديل</button>
+                        <button class="btn" style="padding:6px 10px; font-size:0.75rem; background:${p.sold?'#ff9900':'#00ff88'};" onclick="toggleSold('${p.$id}', ${p.sold})">${p.sold ? 'إلغاء البيع' : 'كمباع'}</button>
+                        <button class="btn" style="padding:6px 10px; font-size:0.75rem; background:#ff2a5f; color:#fff;" onclick="deleteProd('${p.$id}')">حذف</button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function renderOrdersAdmin() {
+            const list = document.getElementById('adminOrdersList');
+            document.getElementById('orderCount').innerText = orders.length;
+            if(orders.length === 0) { list.innerHTML = `<p style="color:var(--muted); font-size:0.85rem;">لا توجد طلبات جديدة</p>`; return; }
+            
+            list.innerHTML = orders.map(o => {
+                let itemsHtml = '';
+                try {
+                    const parsedItems = JSON.parse(o.items);
+                    itemsHtml = parsedItems.map(i => `
+                        <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <img src="${i.image}" style="width:45px; height:45px; border-radius:6px; object-fit:cover;">
+                            <div>
+                                <div style="font-weight:700; color:#fff;">${i.name}</div>
+                                <div style="font-size:0.75rem; color:var(--muted);">القياس: ${i.size} | السعر: ${Number(i.price).toLocaleString()} د.ع</div>
+                            </div>
+                        </div>
+                    `).join('');
+                } catch (e) {
+                    itemsHtml = `<div style="padding:6px; color:#00ff88;">${o.items}</div>`;
+                }
+
+                return `
+                <div class="order-card">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-weight:700;">
+                        <span>👤 ${o.customerName} (${o.phone})</span>
+                        <span style="color:var(--primary);">${Number(o.total).toLocaleString()} د.ع</span>
+                    </div>
+                    <div style="color:var(--muted); margin-bottom:10px;">📍 ${o.governorate} - ${o.address} <span style="float:left; font-size:0.75rem;">${o.date}</span></div>
+                    <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; font-size:0.85rem;">
+                        <strong style="color:var(--primary); display:block; margin-bottom:8px;"><i class="fa-solid fa-box-open"></i> المنتجات المطلوبة:</strong>
+                        ${itemsHtml}
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 2000);
+        }
+
+        checkAuth();
+    </script>
+</body>
+</html>
